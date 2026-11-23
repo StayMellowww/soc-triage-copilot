@@ -12,11 +12,38 @@ python app.py --demo
 
 The demo uses Python's standard library and runs without API keys or installations. It prints three complete tickets using fictional evidence and clearly labeled simulated reputation data.
 
+![Streamlit phishing demo showing two simulated reputation results, one redacted IP, and the generated incident ticket](docs/dashboard-demo.png)
+
+The screenshot and example ticket use the same fictional alert and simulated results. [Read the complete phishing ticket](docs/example-phishing-ticket.md).
+
 | Demo | What to look for |
 | --- | --- |
 | Credential-harvesting email | Reply-To mismatch, reported SPF/DKIM failures, URL reputation, and private relay IP redaction |
 | Encoded PowerShell | Sysmon process creation, a synthetic SHA-256 reputation lookup, and an Execution mapping |
 | Suspected outbound beaconing | Repeated outbound connections, destination IP reputation, and a candidate Command and Control mapping |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    input["EML or Sysmon JSON"] --> entry["CLI or Streamlit"]
+    entry --> parse["Parse evidence and indicators"]
+    parse --> redact["Sanitize evidence and indicators"]
+    redact --> enrich{"Enrichment mode"}
+    enrich -->|Local or mock| outcomes["Record lookup outcomes"]
+    enrich -->|Live| cache["Check local cache and request budget"]
+    cache -->|Cache hit or skipped| outcomes
+    cache -->|Eligible outbound lookup| intel["VirusTotal or AbuseIPDB"]
+    intel --> outcomes
+    redact --> draft["Rule-based or optional model draft"]
+    outcomes --> draft
+    draft --> validate["Check ATT&CK mappings against evidence"]
+    outcomes --> ticket["Markdown ticket with IOC table"]
+    validate --> ticket
+    redact --> evidence["Dashboard evidence panel"]
+    ticket --> review["Analyst review"]
+    evidence --> review
+```
 
 ## Triage a file
 
@@ -96,10 +123,6 @@ Set `$env:OLLAMA_MODEL` to use another installed local model. In Streamlit, choo
 In the dashboard, select **Upload a file**, choose **LM Studio (local)** under **Ticket drafting**, and enter the model identifier. The app sends sanitized evidence to `127.0.0.1:1234`. **Local only** skips external enrichment, and **Mock results** uses simulated reputation scores. Live enrichment can be combined with local drafting. A fallback ticket includes the reason if the server is unreachable, the model is unavailable, or its output is incomplete.
 
 ## Data handling
-
-```text
-EML or Sysmon JSON -> parse -> redact -> enrich -> draft Markdown -> analyst review
-```
 
 Local and mock modes keep alert data on the machine when using rule-based drafting or a locally loaded Ollama or LM Studio model. Live mode sends eligible public IPs, full eligible URLs, or hashes to configured intel providers. When OpenAI is selected and configured, it receives selected sanitized evidence, including email addresses, authentication headers, or process command lines. Use approved alerts for live mode. Redaction covers RFC1918 IPv4 addresses, Windows profile names in `C:\Users\<user>` paths, and credentials in URL userinfo. Other sensitive strings, such as tokens in query parameters or command arguments, can remain in the evidence.
 
