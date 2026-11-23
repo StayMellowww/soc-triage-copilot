@@ -3,8 +3,12 @@
 import base64
 import ipaddress
 import os
+import sqlite3
+import time
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit
 
+from .lookup_state import LookupState
 from .sanitizer import REDACTED
 
 VIRUSTOTAL = "https://www.virustotal.com/api/v3"
@@ -57,6 +61,17 @@ def _score(kind, payload):
     return f"{malicious} malicious / {suspicious} suspicious engines", malicious >= 3
 
 
+def _retry_delay(header):
+    if header is None:
+        return 60
+    try:
+        if header.isascii() and header.isdecimal() and len(header) <= 10:
+            return max(1, int(header))
+        return max(1, parsedate_to_datetime(header).timestamp() - time.time())
+    except (ValueError, TypeError, OverflowError, OSError):
+        return 60
+
+
 def _lookup(kind, indicator, api_key):
     import requests
 
@@ -74,15 +89,16 @@ def _lookup(kind, indicator, api_key):
                                     headers={"x-apikey": api_key, "Accept": "application/json"}, **options)
         if response.status_code == 200:
             score, flagged = _score(kind, response.json())
-            return "Found", score, flagged
+            return ("Found", score, flagged), None
         status = {404: "No record", 429: "Rate limited", 401: "Unauthorized", 403: "Forbidden"}
-        return status.get(response.status_code, f"HTTP {response.status_code}"), "", False
+        retry_after = _retry_delay(response.headers.get("Retry-After")) if response.status_code == 429 else None
+        return (status.get(response.status_code, f"HTTP {response.status_code}"), "", False), retry_after
     except requests.Timeout:
-        return "Timed out", "", False
+        return ("Timed out", "", False), None
     except requests.RequestException:
-        return "Request failed", "", False
+        return ("Request failed", "", False), None
     except (KeyError, TypeError, ValueError, OverflowError):
-        return "Invalid response", "", False
+        return ("Invalid response", "", False), None
 
 
 def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
@@ -90,7 +106,7 @@ def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
     keys = {"VirusTotal": os.getenv("VIRUSTOTAL_API_KEY", "").strip(),
             "AbuseIPDB": os.getenv("ABUSEIPDB_API_KEY", "").strip()} if mode == "live" else {}
     counts = dict.fromkeys(keys, 0)
-    rate_limited = set()
+    states = {provider: LookupState(provider, key) for provider, key in keys.items() if key}
     rows = []
     for kind, (label, provider) in PROVIDERS.items():
         for indicator in sanitized_iocs[kind]:
@@ -112,16 +128,27 @@ def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
                 status = "URL ineligible"
             elif not keys[provider]:
                 status = "API key missing"
-            elif provider in rate_limited:
-                status = "Rate limited"
-            elif counts[provider] >= LOOKUP_LIMIT:
-                status = "Lookup limit reached"
             else:
-                counts[provider] += 1
-                status, score, flagged = _lookup(kind, indicator, keys[provider])
-                outcome = {"Found": "Checked", "No record": "No record"}.get(status, "Failed")
-                if status == "Rate limited":
-                    rate_limited.add(provider)
+                state = states[provider]
+                try:
+                    cached, skipped = state.reserve(kind, indicator, within_alert_limit=counts[provider] < LOOKUP_LIMIT)
+                except (OSError, sqlite3.Error):
+                    cached, skipped = None, "Lookup state unavailable"
+                if skipped:
+                    status = skipped
+                else:
+                    result = cached
+                    if result is None:
+                        counts[provider] += 1
+                        result, retry_after = _lookup(kind, indicator, keys[provider])
+                        try:
+                            state.record(kind, indicator, result, retry_after)
+                        except (OSError, sqlite3.Error):
+                            pass  # Keep the current provider response if it cannot be saved.
+                    status, score, flagged = result
+                    outcome = {"Found": "Checked", "No record": "No record"}.get(status, "Failed")
+                    if cached:
+                        status += " (cached)"
             rows.append({"type": label, "indicator": indicator, "provider": provider,
                          "outcome": outcome, "status": status, "score": score, "flagged": flagged})
     return rows

@@ -2,5 +2,6 @@
 .tmp/
 __pycache__/
 .pytest_cache/
+.cache/
 .env
 reports/

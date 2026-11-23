@@ -1,5 +1,6 @@
 import base64
 import json
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -8,8 +9,14 @@ import pytest
 import requests
 
 from app import DATA, DEMO_ALERTS, main, triage
+from src import lookup_state
 from src.threat_intel import ABUSEIPDB, VIRUSTOTAL, enrich_iocs
 from src.ticket_generator import HEADINGS
+
+
+@pytest.fixture(autouse=True)
+def isolate_lookup_state(monkeypatch, tmp_path):
+    monkeypatch.setenv("SOC_TRIAGE_LOOKUP_DB", str(tmp_path / "lookups.sqlite3"))
 
 
 def no_request(*args, **kwargs):
@@ -44,7 +51,7 @@ def test_live_enrichment_withholds_non_public_indicators_and_handles_service_err
         assert kwargs["timeout"] == (3, 8)
         if url == f"{VIRUSTOTAL}/urls/{url_id}":
             assert kwargs["headers"]["x-apikey"] == "vt-test-key"
-            return SimpleNamespace(status_code=429)
+            return SimpleNamespace(status_code=429, headers={"Retry-After": "120"})
         assert url == ABUSEIPDB
         assert kwargs["params"]["ipAddress"] == "8.8.8.8"
         assert kwargs["headers"]["Key"] == "ip-test-key"
@@ -56,7 +63,7 @@ def test_live_enrichment_withholds_non_public_indicators_and_handles_service_err
     result = triage("report.eml", message, "live")
     assert lookup.call_count == 2
     assert [row["status"] for row in result.iocs] == [
-        "Rate limited", "Redacted", "Redacted", "Non-public IP", "Timed out", "Rate limited",
+        "Rate limited", "Redacted", "Redacted", "Non-public IP", "Timed out", "Provider cooldown",
     ]
     assert [row["outcome"] for row in result.iocs] == [
         "Failed", "Skipped", "Skipped", "Skipped", "Failed", "Skipped",
@@ -64,6 +71,9 @@ def test_live_enrichment_withholds_non_public_indicators_and_handles_service_err
     assert "0 checked, 0 no record, 4 skipped, 2 failed, 0 simulated" in result.ticket
     assert "192.168.2.3" not in result.ticket
     assert "OpenAI API key missing" in result.ticket
+    next_alert = enrich_iocs({"sha256": ["b" * 64], "urls": [], "ipv4": []}, "live")
+    assert next_alert[0]["status"] == "Provider cooldown"
+    assert lookup.call_count == 2
 
 
 def test_live_hash_lookup_keeps_score_and_no_record_distinct(monkeypatch):
@@ -76,6 +86,44 @@ def test_live_hash_lookup_keeps_score_and_no_record_distinct(monkeypatch):
     assert (rows[0]["status"], rows[0]["score"], rows[0]["flagged"]) == ("Found", "4 malicious / 1 suspicious engines", True)
     assert (rows[1]["status"], rows[1]["score"], rows[1]["flagged"]) == ("No record", "", False)
     assert [row["outcome"] for row in rows] == ["Checked", "No record"]
+    cached = enrich_iocs({"sha256": ["a" * 64, "b" * 64], "urls": [], "ipv4": []}, "live")
+    assert [row["status"] for row in cached] == ["Found (cached)", "No record (cached)"]
+    assert [row["outcome"] for row in cached] == ["Checked", "No record"]
+    assert get.call_count == 2
+
+
+def test_live_lookup_budget_and_expiry_across_alerts(monkeypatch):
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "vt-test-key")
+    get = MagicMock(return_value=SimpleNamespace(status_code=404))
+    monkeypatch.setattr(requests, "get", get)
+    now = 100_000
+    monkeypatch.setattr(lookup_state, "time", lambda: now)
+
+    def check(character):
+        return enrich_iocs({"sha256": [character * 64], "urls": [], "ipv4": []}, "live")[0]
+
+    for character in "abcd":
+        assert check(character)["status"] == "No record"
+    assert check("e")["status"] == "Local rate limit reached"
+    assert check("a")["status"] == "No record (cached)"
+    assert get.call_count == 4
+
+    now += 61
+    assert check("e")["status"] == "No record"
+    now += 240
+    assert check("a")["status"] == "No record"
+    assert get.call_count == 6
+
+
+def test_concurrent_lookups_share_request_reservations():
+    def reserve(indicator):
+        state = lookup_state.LookupState("VirusTotal", "vt-test-key")
+        return state.reserve("sha256", indicator, within_alert_limit=True)[1]
+
+    with ThreadPoolExecutor(max_workers=8) as workers:
+        results = list(workers.map(reserve, "abcdefgh"))
+    assert results.count(None) == 4
+    assert results.count("Local rate limit reached") == 4
 
 
 def test_openai_gets_only_sanitized_evidence_and_ticket_uses_real_rows(monkeypatch):
