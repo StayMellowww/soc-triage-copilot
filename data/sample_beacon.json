@@ -1,0 +1,19 @@
+{
+  "events": [
+    {
+      "EventID": 3, "UtcTime": "2026-01-12 14:28:00.000", "Computer": "demo-workstation",
+      "ProcessGuid": "{00000000-0000-0000-0000-000000000001}", "Image": "C:\\Users\\demo-analyst\\AppData\\Local\\Example\\client.exe",
+      "SourceIp": "172.20.3.24", "DestinationIp": "203.0.113.45", "DestinationPort": 443, "Protocol": "tcp", "Initiated": true
+    },
+    {
+      "EventID": 3, "UtcTime": "2026-01-12 14:29:00.000", "Computer": "demo-workstation",
+      "ProcessGuid": "{00000000-0000-0000-0000-000000000001}", "Image": "C:\\Users\\demo-analyst\\AppData\\Local\\Example\\client.exe",
+      "SourceIp": "172.20.3.24", "DestinationIp": "203.0.113.45", "DestinationPort": 443, "Protocol": "tcp", "Initiated": true
+    },
+    {
+      "EventID": 3, "UtcTime": "2026-01-12 14:30:00.000", "Computer": "demo-workstation",
+      "ProcessGuid": "{00000000-0000-0000-0000-000000000001}", "Image": "C:\\Users\\demo-analyst\\AppData\\Local\\Example\\client.exe",
+      "SourceIp": "172.20.3.24", "DestinationIp": "203.0.113.45", "DestinationPort": 443, "Protocol": "tcp", "Initiated": true
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+requests>=2.32,<3
+openai>=2,<3
+streamlit>=1.56,<2
+pytest>=8.4,<10

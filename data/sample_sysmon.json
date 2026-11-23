@@ -1,0 +1,10 @@
+{
+  "System": {"EventID": 1, "Computer": "demo-workstation"},
+  "EventData": {
+    "UtcTime": "2026-01-12 14:20:00.000",
+    "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "ParentImage": "C:\\Users\\demo-analyst\\AppData\\Local\\Example\\viewer.exe",
+    "CommandLine": "powershell.exe -EncodedCommand <mock-encoded-script-omitted>",
+    "Hashes": "SHA256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}

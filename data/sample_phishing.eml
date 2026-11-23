@@ -1,0 +1,12 @@
+From: Account Review <notices@signin-review.example>
+To: analyst@northwind.example
+Reply-To: Account Review <help@review-queue.example>
+Subject: Sample alert: mailbox sign-in verification
+Received: from mx.signin-review.example (198.51.100.27) by mx.northwind.example (10.42.5.10)
+Received-SPF: softfail (northwind.example: domain not authorized) client-ip=198.51.100.27
+Authentication-Results: mx.northwind.example; spf=softfail smtp.mailfrom=signin-review.example; dkim=fail header.d=signin-review.example
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<p>Fictional evidence for a reported credential-harvesting alert.</p>
+<p>Reported link: <a href="https://signin-review.example/session">Account review</a></p>
