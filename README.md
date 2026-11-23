@@ -111,6 +111,18 @@ The pipeline extracts indicators without opening their destinations or executing
 
 The suite covers EML and Sysmon parsing, redaction, the offline CLI, and provider request/response handling with mocked services.
 
+## ATT&CK validation and model evaluation
+
+The ticket checks model-suggested technique IDs against the bundled Enterprise ATT&CK 20.1 index. It uses official technique names and labels the evidence separately. A link with an authentication or sender anomaly is a phishing candidate, and repeated TCP connections are only a web-protocol candidate. An observed PowerShell interpreter with the encoded-command flag supports the PowerShell mapping. Other valid suggestions are marked as lacking established evidence support under the current rules. The index is derived from MITRE STIX and its redistribution license is included in `data/ATTACK-LICENSE.txt`.
+
+With LM Studio running locally, evaluate a loaded model against five fictional alerts:
+
+```powershell
+.\.venv\Scripts\python.exe evaluate.py --model qwen3.8-9b-distill
+```
+
+The evaluation checks original model drafts in local-only mode. It reports unexpected or missing technique IDs, specific phrases that confuse unknown reputation with an external result, and specific claims that containment was performed. It counts rule-based fallbacks separately. Phrase checks cover known failure patterns and require human review for wording they miss.
+
 ## References
 
 - [VirusTotal URL reports](https://docs.virustotal.com/reference/url-info) and [file reports](https://docs.virustotal.com/reference/file-info)

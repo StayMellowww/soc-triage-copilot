@@ -1,0 +1,6 @@
+From: Updates <news@team.example>
+To: analyst@team.example
+Subject: Scheduled team meeting
+Authentication-Results: mail.team.example; spf=pass; dkim=pass
+
+The meeting schedule is at https://team.example/calendar.
