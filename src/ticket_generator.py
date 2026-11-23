@@ -22,8 +22,9 @@ mapping is uncertain. Use only verified-in-input IOC rows and scores, keep URLs 
 and omit links, HTML, and executable commands. Use '- [ ]' for proposed analyst actions.
 Prioritize evidence preservation and validation. Make disruptive actions conditional on
 confirmed evidence and approval. Never imply any containment action has been performed.
-Keep the ticket concise. An IOC with status Local mode, missing, skipped, or failed was
-not checked and has unknown reputation. Map PowerShell to T1059.001 when supported.
+Keep the ticket concise. Leave lookup outcomes and reputation details to the Enriched
+IOC Table. Only a Checked outcome provides a live reputation score. Simulated results
+are fictional. Map PowerShell to T1059.001 when supported.
 """
 
 
@@ -43,11 +44,17 @@ def _cell(value):
 def _ioc_table(rows):
     if not rows:
         return "No supported indicators were extracted."
-    lines = ["| Type | Indicator | Provider | Status | Reputation |",
-             "| --- | --- | --- | --- | --- |"]
+    counts = Counter(row["outcome"] for row in rows)
+    outcomes = ("Checked", "No record", "Skipped", "Failed", "Simulated")
+    summary = ", ".join(f"{counts[outcome]} {outcome.lower()}" for outcome in outcomes)
+    lines = [f"**Lookup outcomes** — {summary}.", "",
+             "Skipped, failed, and no-record lookups leave reputation unknown. Simulated results use fictional data.",
+             "", "| Type | Indicator | Provider | Outcome | Status | Reputation |",
+             "| --- | --- | --- | --- | --- | --- |"]
     for row in rows:
         indicator = display_indicator(row["indicator"])
-        cells = [row["type"], f"`{_cell(indicator)}`", row["provider"], row["status"], row["score"] or "—"]
+        cells = [row["type"], f"`{_cell(indicator)}`", row["provider"], row["outcome"],
+                 row["status"], row["score"] or "—"]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 

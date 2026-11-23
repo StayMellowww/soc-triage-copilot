@@ -60,7 +60,7 @@ $env:OPENAI_MODEL = 'gpt-5-mini'  # Optional override
 | AbuseIPDB v2 | Checks public IPv4 addresses for abuse confidence and report count over the past 90 days. |
 | OpenAI Responses API | Drafts the ticket from sanitized evidence and normalized reputation scores. Uses the `LLMClient` interface so another provider can be added later. OpenAI API usage is billed separately. |
 
-Lookups are capped at four per threat-intel provider per alert. The IOC table records missing keys, timeouts, rate limits, and missing reports. The pipeline uses a rule-based draft when the selected model is unavailable or returns an incomplete ticket, and builds the IOC table directly from enrichment results in every mode.
+Lookups are capped at four per threat-intel provider per alert. The ticket reports how many indicators were checked, returned no record, were skipped, failed, or used simulated data. Its IOC table shows the per-indicator outcome and reason from the pipeline. Skipped, failed, and no-record outcomes leave reputation unknown. Expand **Sanitized source evidence** in the dashboard to compare the draft with parsed email headers or Sysmon event fields. The pipeline uses a rule-based draft when the selected model is unavailable or returns an incomplete ticket.
 
 ## Local drafting with Ollama
 

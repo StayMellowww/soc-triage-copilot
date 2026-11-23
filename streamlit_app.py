@@ -61,11 +61,14 @@ st.subheader("Enriched indicators")
 if result.iocs:
     st.dataframe([
         {"Type": row["type"], "Indicator": display_indicator(row["indicator"]), "Provider": row["provider"],
-         "Status": row["status"], "Reputation": row["score"] or "—"}
+         "Outcome": row["outcome"], "Status": row["status"], "Reputation": row["score"] or "—"}
         for row in result.iocs
     ], hide_index=True, width="stretch")
 else:
     st.caption("No supported indicators were extracted.")
+
+with st.expander("Sanitized source evidence"):
+    st.json(result.evidence)
 
 st.subheader("Incident ticket")
 st.caption("Use the copy icon in the code block to copy the Markdown to your clipboard.")

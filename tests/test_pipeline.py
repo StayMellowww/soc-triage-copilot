@@ -58,6 +58,10 @@ def test_live_enrichment_withholds_non_public_indicators_and_handles_service_err
     assert [row["status"] for row in result.iocs] == [
         "Rate limited", "Redacted", "Redacted", "Non-public IP", "Timed out", "Rate limited",
     ]
+    assert [row["outcome"] for row in result.iocs] == [
+        "Failed", "Skipped", "Skipped", "Skipped", "Failed", "Skipped",
+    ]
+    assert "0 checked, 0 no record, 4 skipped, 2 failed, 0 simulated" in result.ticket
     assert "192.168.2.3" not in result.ticket
     assert "OpenAI API key missing" in result.ticket
 
@@ -71,6 +75,7 @@ def test_live_hash_lookup_keeps_score_and_no_record_distinct(monkeypatch):
     assert get.call_args_list[0].args[0] == f"{VIRUSTOTAL}/files/{'a' * 64}"
     assert (rows[0]["status"], rows[0]["score"], rows[0]["flagged"]) == ("Found", "4 malicious / 1 suspicious engines", True)
     assert (rows[1]["status"], rows[1]["score"], rows[1]["flagged"]) == ("No record", "", False)
+    assert [row["outcome"] for row in rows] == ["Checked", "No record"]
 
 
 def test_openai_gets_only_sanitized_evidence_and_ticket_uses_real_rows(monkeypatch):
@@ -94,6 +99,10 @@ def test_openai_gets_only_sanitized_evidence_and_ticket_uses_real_rows(monkeypat
     assert "Draft for Executive Summary" in result.ticket
     assert "Draft for Enriched IOC Table" not in result.ticket
     assert "API key missing" in result.ticket
+    assert "0 checked, 0 no record, 1 skipped, 0 failed, 0 simulated" in result.ticket
+    assert "demo-analyst" not in json.dumps(result.evidence)
+    assert "[REDACTED]" in json.dumps(result.evidence)
+    assert "-EncodedCommand" in json.dumps(result.evidence)
 
     create.return_value = SimpleNamespace(status="completed", output_text="Unstructured reply")
     fallback = triage(path, path.read_bytes(), "live").ticket

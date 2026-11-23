@@ -23,6 +23,7 @@ DEMO_ALERTS = {
 class TriageResult:
     iocs: list[dict]
     ticket: str
+    evidence: dict
 
 
 def triage(filename: str | Path, raw: bytes, mode: str = "local", *, ollama: bool = False,
@@ -33,7 +34,7 @@ def triage(filename: str | Path, raw: bytes, mode: str = "local", *, ollama: boo
         raise ValueError("Choose one local model provider")
     client = (LMStudioClient(model) if lm_studio else OllamaClient() if ollama
               else OpenAIClient.from_environment() if mode == "live" else None)
-    return TriageResult(rows, generate_ticket(alert, rows, mode, client))
+    return TriageResult(rows, generate_ticket(alert, rows, mode, client), alert["evidence"])
 
 
 def _read_alert(path):

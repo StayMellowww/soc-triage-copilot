@@ -95,6 +95,7 @@ def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
     for kind, (label, provider) in PROVIDERS.items():
         for indicator in sanitized_iocs[kind]:
             status, score, flagged = "", "", False
+            outcome = "Skipped"
             if REDACTED in indicator:
                 status = "Redacted"
             elif mode == "local":
@@ -102,6 +103,7 @@ def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
             elif mode == "mock":
                 payload = _mock_payload(kind, indicator)
                 status = "Mock result" if payload else "No mock record"
+                outcome = "Simulated"
                 if payload:
                     score, flagged = _score(kind, payload)
             elif kind == "ipv4" and not _is_public_address(ipaddress.IPv4Address(indicator)):
@@ -117,8 +119,9 @@ def enrich_iocs(sanitized_iocs: dict, mode: str) -> list[dict]:
             else:
                 counts[provider] += 1
                 status, score, flagged = _lookup(kind, indicator, keys[provider])
+                outcome = {"Found": "Checked", "No record": "No record"}.get(status, "Failed")
                 if status == "Rate limited":
                     rate_limited.add(provider)
             rows.append({"type": label, "indicator": indicator, "provider": provider,
-                         "status": status, "score": score, "flagged": flagged})
+                         "outcome": outcome, "status": status, "score": score, "flagged": flagged})
     return rows
